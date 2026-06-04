@@ -1,0 +1,7 @@
+{
+  "version": "base",
+  "model": "meta/llama-3.1-8b-instruct",
+  "eval_score": null,
+  "notes": "Base template prompt. Replace with domain-specific content.",
+  "created": "2026-06-05"
+}

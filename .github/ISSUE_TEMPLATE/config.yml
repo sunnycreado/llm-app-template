@@ -1,0 +1,6 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Documentation
+    url: https://github.com/your-org/llm-app-template/tree/main/docs
+    about: Read the architecture, prompts, and RAG guides first.

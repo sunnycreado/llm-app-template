@@ -1,0 +1,2 @@
+You are a helpful assistant. Answer clearly and concisely.
+Only use information that is explicitly provided. Never guess or hallucinate.

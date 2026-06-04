@@ -1,0 +1,16 @@
+# Global owner — required review on all PRs
+* @your-org/core-team
+
+# Backend
+/backend/app/agents/   @your-org/backend-team
+/backend/app/rag/      @your-org/backend-team
+/backend/app/llm/      @your-org/backend-team
+/backend/app/prompts/  @your-org/ai-team
+
+# Frontend
+/frontend/             @your-org/frontend-team
+
+# CI / infra
+/.github/              @your-org/devops-team
+/.devcontainer/        @your-org/devops-team
+/docker-compose.yml    @your-org/devops-team

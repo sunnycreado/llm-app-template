@@ -1,0 +1,10 @@
+[
+  {
+    "vars": { "prompt": "What is 2 + 2?" },
+    "assert": [{ "type": "contains", "value": "4" }]
+  },
+  {
+    "vars": { "prompt": "Say hello" },
+    "assert": [{ "type": "icontains", "value": "hello" }]
+  }
+]

@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+.next/
+
+# Env
+.env
+!.env.example
+
+# Data
+backend/evals/reports/
+*.log
+
+# VS Code
+.vscode/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
