@@ -400,6 +400,7 @@ function renderMain() {
       <button class="tab ${state.activeTab === 'create' ? 'tab--active' : ''}" onclick="switchTab('create')">+ New Version</button>
       <button class="tab ${state.activeTab === 'compare' ? 'tab--active' : ''}" onclick="switchTab('compare')">Compare</button>
       <button class="tab ${state.activeTab === 'test' ? 'tab--active' : ''}" onclick="switchTab('test')">Test</button>
+      <button class="tab ${state.activeTab === 'eval' ? 'tab--active' : ''}" onclick="switchTab('eval')">⚡ Eval</button>
     </div>
 
     <div class="tab-panel ${state.activeTab === 'versions' ? 'tab-panel--active' : ''}" id="tab-versions">
@@ -414,10 +415,19 @@ function renderMain() {
     <div class="tab-panel ${state.activeTab === 'test' ? 'tab-panel--active' : ''}" id="tab-test">
       ${renderTestTab()}
     </div>
+    <div class="tab-panel ${state.activeTab === 'eval' ? 'tab-panel--active' : ''}" id="tab-eval">
+      ${renderEvalTab()}
+    </div>
   `;
 
   // Bind create form
   document.getElementById('create-form')?.addEventListener('submit', createVersion);
+
+  // Bind add eval case form
+  document.getElementById('add-case-form')?.addEventListener('submit', createEvalCase);
+
+  // Load eval cases when eval tab is active
+  if (state.activeTab === 'eval') loadEvalCases();
 }
 
 function switchTab(tab) {
@@ -683,6 +693,216 @@ const observer = new MutationObserver(() => {
   }
 });
 observer.observe(document.getElementById('main-content'), { childList: true, subtree: true });
+
+// ── Eval tab ─────────────────────────────────────────────────────────
+let evalState = { cases: [], lastRun: null, running: false };
+
+async function loadEvalCases() {
+  try {
+    const data = await api('GET', `/api/evals/${promptName()}/cases`);
+    evalState.cases = data.cases || [];
+    document.getElementById('eval-cases-list').innerHTML = renderCasesList();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function createEvalCase(e) {
+  e.preventDefault();
+  const form = e.target;
+  const keywords = form.keywords.value.trim()
+    ? form.keywords.value.split(',').map(k => k.trim()).filter(Boolean)
+    : [];
+  try {
+    await api('POST', `/api/evals/${promptName()}/cases`, {
+      input: form.input.value.trim(),
+      expected_keywords: keywords,
+      notes: form.notes.value.trim() || null,
+      tags: [],
+    });
+    form.reset();
+    toast('Test case added');
+    await loadEvalCases();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteEvalCase(id) {
+  try {
+    await api('DELETE', `/api/evals/${promptName()}/cases/${id}`);
+    toast('Deleted');
+    await loadEvalCases();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function runEval() {
+  const v = state.selectedVersion;
+  if (!v) return;
+  if (evalState.cases.length === 0) { toast('Add test cases first', 'error'); return; }
+
+  evalState.running = true;
+  document.getElementById('run-eval-btn').disabled = true;
+  document.getElementById('run-eval-btn').textContent = 'Running...';
+  document.getElementById('eval-results').innerHTML = `
+    <div class="loading" style="padding:24px;">
+      <div class="spinner"></div>
+      Running ${evalState.cases.length} test case(s) against version <strong>${v.version}</strong>…
+    </div>`;
+
+  try {
+    const result = await api('POST', `/api/evals/${promptName()}/${v.version}/run`);
+    evalState.lastRun = result;
+
+    // Fetch full results with per-case breakdown
+    const full = await api('GET', `/api/evals/${promptName()}/${v.version}/runs/${result.run_id}`);
+    document.getElementById('eval-results').innerHTML = renderRunResults(full);
+    toast(`Eval complete — score ${(result.overall_score * 100).toFixed(0)}%`);
+    // Refresh versions to show updated score
+    await loadVersions();
+  } catch (err) {
+    document.getElementById('eval-results').innerHTML = `<p style="color:var(--red);padding:16px;">${err.message}</p>`;
+    toast(err.message, 'error');
+  } finally {
+    evalState.running = false;
+    const btn = document.getElementById('run-eval-btn');
+    if (btn) { btn.disabled = false; btn.textContent = '▶ Run Eval'; }
+  }
+}
+
+function renderEvalTab() {
+  const v = state.selectedVersion;
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+
+      <!-- Test cases panel -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Test Cases</h2>
+          <span style="font-size:12px;color:var(--muted);" id="case-count"></span>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:16px;">
+
+          <!-- Add case form -->
+          <form id="add-case-form" style="display:flex;flex-direction:column;gap:10px;">
+            <div class="field">
+              <label>Input *</label>
+              <textarea name="input" required rows="3" placeholder="find CGL filings for Doctors Company in Texas"></textarea>
+            </div>
+            <div class="field">
+              <label>Expected keywords (comma separated)</label>
+              <input name="keywords" placeholder="Texas, General Liability, Doctors" />
+            </div>
+            <div class="field">
+              <label>Notes</label>
+              <input name="notes" placeholder="optional note" />
+            </div>
+            <button type="submit" class="btn btn--primary btn--sm" style="align-self:flex-end;">+ Add Case</button>
+          </form>
+
+          <hr class="divider" />
+
+          <!-- Cases list -->
+          <div id="eval-cases-list">
+            <div class="empty"><div class="empty-icon">📋</div><div>No test cases yet</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Run & results panel -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div class="card">
+          <div class="card-header">
+            <h2>Run Eval</h2>
+            ${v ? `<span style="font-size:12px;color:var(--muted);">Version: <strong style="color:var(--text)">${v.version}</strong></span>` : ''}
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+            ${!v ? '<p style="color:var(--muted);font-size:13px;">Select a version from the sidebar first.</p>' : `
+              <p style="font-size:13px;color:var(--muted);">
+                Runs all test cases against <strong style="color:var(--text)">${v.version}</strong>.
+                Scores keyword matches and answer relevancy via NIM judge.
+                Automatically saves the score to the prompt version.
+              </p>
+              <button id="run-eval-btn" class="btn btn--primary" onclick="runEval()" ${evalState.cases.length === 0 ? 'disabled' : ''}>
+                ▶ Run Eval
+              </button>
+            `}
+          </div>
+        </div>
+
+        <div id="eval-results"></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCasesList() {
+  const cases = evalState.cases;
+  const countEl = document.getElementById('case-count');
+  if (countEl) countEl.textContent = `${cases.length} case${cases.length !== 1 ? 's' : ''}`;
+
+  if (!cases.length) return '<div class="empty" style="padding:16px 0;"><div class="empty-icon">📋</div><div>No test cases yet</div></div>';
+
+  return cases.map(c => `
+    <div style="display:flex;gap:10px;align-items:flex-start;padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:6px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;margin-bottom:4px;">${escHtml(c.input)}</div>
+        ${c.expected_keywords?.length ? `
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
+            ${c.expected_keywords.map(k => `<span class="badge badge--inactive">${escHtml(k)}</span>`).join('')}
+          </div>` : ''}
+        ${c.notes ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">${escHtml(c.notes)}</div>` : ''}
+      </div>
+      <button class="btn btn--danger btn--sm" onclick="deleteEvalCase(${c.id})">✕</button>
+    </div>
+  `).join('');
+}
+
+function renderRunResults(run) {
+  const scoreColor = run.overall_score >= 0.8 ? 'var(--green)' : run.overall_score >= 0.5 ? 'var(--yellow)' : 'var(--red)';
+  return `
+    <div class="card">
+      <div class="card-header">
+        <h2>Results</h2>
+        <span style="font-size:18px;font-weight:700;color:${scoreColor};">${(run.overall_score * 100).toFixed(0)}%</span>
+      </div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;gap:16px;font-size:12px;color:var(--muted);margin-bottom:8px;">
+          <span>✅ ${run.passed_cases} passed</span>
+          <span>❌ ${run.total_cases - run.passed_cases} failed</span>
+          <span>Total: ${run.total_cases}</span>
+        </div>
+        ${(run.results || []).map((r, i) => `
+          <div style="background:var(--surface2);border:1px solid ${r.passed ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'};border-radius:8px;padding:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <span style="font-size:12px;font-weight:600;color:${r.passed ? 'var(--green)' : 'var(--red)'};">${r.passed ? '✅ PASS' : '❌ FAIL'}</span>
+              <span style="font-size:12px;color:var(--muted);">score: <strong style="color:var(--text)">${r.overall_score != null ? (r.overall_score * 100).toFixed(0) + '%' : '—'}</strong></span>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Input:</div>
+            <div style="font-size:13px;margin-bottom:8px;">${escHtml(r.input)}</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Response:</div>
+            <div style="font-size:12px;color:var(--text);background:var(--bg);padding:8px;border-radius:6px;max-height:80px;overflow-y:auto;">${escHtml(r.actual_output || '(empty)')}</div>
+            <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--muted);">
+              <span>Keywords: <strong style="color:var(--text)">${r.keyword_score != null ? (r.keyword_score * 100).toFixed(0) + '%' : '—'}</strong></span>
+              <span>Relevancy: <strong style="color:var(--text)">${r.relevancy_score != null ? (r.relevancy_score * 100).toFixed(0) + '%' : '—'}</strong></span>
+              ${r.error ? `<span style="color:var(--red);">Error: ${escHtml(r.error)}</span>` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function escHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 // ── API URL persistence ───────────────────────────────────────────────
 document.getElementById('api-url').value = localStorage.getItem('ps-api-url') || 'http://localhost:4000';

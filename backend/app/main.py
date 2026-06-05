@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-from app.api.routes import chat, completions, health, prompts
+from app.api.routes import chat, completions, evals, health, prompts
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,7 @@ app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(completions.router, prefix="/api", tags=["completions"])
 app.include_router(prompts.router, prefix="/api", tags=["prompts"])
+app.include_router(evals.router, prefix="/api", tags=["evals"])
 
 if _dev:
     @app.get("/prompt-studio", response_class=HTMLResponse, include_in_schema=False)
