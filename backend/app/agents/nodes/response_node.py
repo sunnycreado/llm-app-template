@@ -9,21 +9,19 @@ client = NIMClient()
 async def response_node(state: AgentState) -> AgentState:
     """
     Generates the final response using:
-    - The versioned system prompt
+    - The versioned system prompt (loaded from DB or files)
     - Retrieved RAG context (if any)
     - Tool results (if any)
     - Conversation history
     """
-    system_content = _build_system_prompt(state)
+    system_content = await _build_system_prompt(state)
 
     messages = [{"role": "system", "content": system_content}]
 
-    # Include conversation history (excluding current input)
     for msg in state.get("messages", []):
         if isinstance(msg, dict) and msg.get("role") in ("user", "assistant"):
             messages.append({"role": msg["role"], "content": msg["content"]})
 
-    # Add current user message
     messages.append({"role": "user", "content": state["input"]})
 
     try:
@@ -35,9 +33,9 @@ async def response_node(state: AgentState) -> AgentState:
     return {**state, "output": output}
 
 
-def _build_system_prompt(state: AgentState) -> str:
+async def _build_system_prompt(state: AgentState) -> str:
     """Assembles the system prompt from versioned file + context + tool results."""
-    prompt = load(name=settings.prompt_name, version=settings.prompt_version)
+    prompt = await load(name=settings.prompt_name, version=settings.prompt_version)
     parts = [prompt["system"]]
 
     if state.get("context"):

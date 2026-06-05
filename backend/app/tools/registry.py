@@ -6,9 +6,9 @@ class ToolRegistry:
     Central registry for all tools.
     tool_node looks up tools here by name.
 
-    To register a tool:
-        from app.tools.my_tool import MyTool
-        registry.register(MyTool())
+    To add a tool:
+        1. Create backend/app/tools/my_tool.py extending BaseTool
+        2. Register it below: registry.register(MyTool())
     """
 
     def __init__(self):
@@ -27,10 +27,9 @@ class ToolRegistry:
         return list(self._tools.keys())
 
 
-# ── Global registry instance ─────────────────────────────────────────
+# ── Global registry ──────────────────────────────────────────────────
 registry = ToolRegistry()
 
-# ── Register tools here ──────────────────────────────────────────────
-# Uncomment to enable built-in tools:
-# from app.tools.calculator import CalculatorTool
-# registry.register(CalculatorTool())
+# ── Registered tools ─────────────────────────────────────────────────
+from app.tools.calculator import CalculatorTool
+registry.register(CalculatorTool())

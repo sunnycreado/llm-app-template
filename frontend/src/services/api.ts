@@ -24,8 +24,26 @@ export const api = {
   complete: (prompt: string) =>
     request<CompletionResponse>("/completions", { prompt }),
 
-  chatStream: (messages: Message[]): EventSource => {
-    // SSE — caller listens to onmessage
-    return new EventSource(`${BASE}/chat/stream`);
+  /**
+   * Streaming chat — uses fetch with ReadableStream.
+   * EventSource cannot POST a body, so we use fetch + stream reader instead.
+   *
+   * Usage:
+   *   const reader = await api.chatStream(messages)
+   *   while (true) {
+   *     const { done, value } = await reader.read()
+   *     if (done) break
+   *     const text = new TextDecoder().decode(value)
+   *     // parse SSE lines: "data: {...}\n\n"
+   *   }
+   */
+  chatStream: async (messages: Message[]): Promise<ReadableStreamDefaultReader<Uint8Array>> => {
+    const res = await fetch(`${BASE}/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages }),
+    });
+    if (!res.ok || !res.body) throw new Error(`Stream failed: HTTP ${res.status}`);
+    return res.body.getReader();
   },
 };

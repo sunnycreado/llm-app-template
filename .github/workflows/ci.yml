@@ -46,8 +46,10 @@ jobs:
         env:
           NIM_API_KEY: ${{ secrets.NIM_API_KEY }}
           NIM_MODEL: meta/llama-3.1-8b-instruct
+          APP_ENV: development
           QDRANT_URL: http://localhost:6333
           REDIS_URL: redis://localhost:6379
+          POSTGRES_HOST: localhost
         run: pytest tests/ -v --tb=short
 
   # ── Frontend ──────────────────────────────────────────────────────
@@ -62,12 +64,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm install
 
       - name: Lint
         working-directory: frontend

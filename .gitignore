@@ -12,9 +12,11 @@ node_modules/
 dist/
 .next/
 
-# Env
+# Env — never commit real keys
 .env
+backend/.env
 !.env.example
+!backend/.env.example
 
 # Data
 backend/evals/reports/

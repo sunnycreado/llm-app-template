@@ -4,7 +4,7 @@
   "service": "app",
   "workspaceFolder": "/workspace",
 
-  "postCreateCommand": "pip install -r backend/requirements.txt && npm install --prefix frontend",
+  "postCreateCommand": "pip install -r backend/requirements.txt && npm install --prefix frontend && [ ! -f backend/.env ] && cp backend/.env.example backend/.env || true",
 
   "forwardPorts": [4000, 5173, 6333, 6379],
   "portsAttributes": {

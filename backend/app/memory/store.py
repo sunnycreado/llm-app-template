@@ -22,17 +22,17 @@ class InMemoryStore:
 
 class RedisStore:
     """
-    Redis-backed store. Persists across restarts.
-    Activated when REDIS_URL is set and USE_REDIS=true in .env
+    Async Redis-backed store. Persists across restarts.
+    Activated when USE_REDIS=true in .env
     """
 
     def __init__(self, ttl_seconds: int = 86400):
-        import redis
-        self.client = redis.from_url(settings.redis_url, decode_responses=True)
+        import redis.asyncio as aioredis
+        self.client = aioredis.from_url(settings.redis_url, decode_responses=True)
         self.ttl = ttl_seconds
 
-    def get(self, key: str) -> Any:
-        value = self.client.get(key)
+    async def get(self, key: str) -> Any:
+        value = await self.client.get(key)
         if value is None:
             return None
         try:
@@ -40,11 +40,11 @@ class RedisStore:
         except json.JSONDecodeError:
             return value
 
-    def set(self, key: str, value: Any):
-        self.client.set(key, json.dumps(value), ex=self.ttl)
+    async def set(self, key: str, value: Any):
+        await self.client.set(key, json.dumps(value), ex=self.ttl)
 
-    def delete(self, key: str):
-        self.client.delete(key)
+    async def delete(self, key: str):
+        await self.client.delete(key)
 
 
 def MemoryStore():
@@ -52,10 +52,9 @@ def MemoryStore():
     Factory — returns RedisStore if USE_REDIS=true, else InMemoryStore.
     Switch by setting USE_REDIS=true in .env
     """
-    use_redis = getattr(settings, "use_redis", False)
-    if use_redis:
+    if getattr(settings, "use_redis", False):
         try:
             return RedisStore()
         except Exception as exc:
-            print(f"[memory] Redis unavailable ({exc}), falling back to in-memory store.")
+            print(f"[memory] Redis unavailable ({exc}), falling back to in-memory.")
     return InMemoryStore()

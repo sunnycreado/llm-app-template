@@ -13,11 +13,11 @@ memory = ConversationMemory()
 @router.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest):
     """
-    Standard chat endpoint.
-    Runs the full LangGraph pipeline and returns a single response.
-    Persists history if session_id is provided.
+    Agentic chat endpoint.
+    Runs the full LangGraph pipeline (router → RAG/tool → response).
+    Persists history per session_id if provided.
     """
-    history = memory.get(body.session_id) if body.session_id else []
+    history = await memory.aget(body.session_id) if body.session_id else []
     all_messages = history + [m.model_dump() for m in body.messages]
 
     try:
@@ -25,11 +25,11 @@ async def chat(body: ChatRequest):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    reply = Message(role="assistant", content=result["output"])
+    reply = Message(role="assistant", content=result["output"] or "")
 
     if body.session_id:
-        memory.append(body.session_id, body.messages[-1].model_dump())
-        memory.append(body.session_id, reply.model_dump())
+        await memory.aappend(body.session_id, body.messages[-1].model_dump())
+        await memory.aappend(body.session_id, reply.model_dump())
 
     return ChatResponse(message=reply, session_id=body.session_id)
 
@@ -38,17 +38,19 @@ async def chat(body: ChatRequest):
 async def chat_stream(body: ChatRequest):
     """
     Streaming chat endpoint — returns tokens via Server-Sent Events.
-    Does NOT run the full agent graph — streams directly from NIM.
-    Use /chat for full agentic behaviour, /chat/stream for fast UX.
+    Streams directly from NIM without running the full agent graph.
+    Use /chat for agentic behaviour, /chat/stream for fast token-by-token UX.
 
-    Frontend usage:
-        const es = new EventSource('/api/chat/stream')
-        es.onmessage = (e) => {
-            const { token } = JSON.parse(e.data)
-            // append token to UI
-        }
+    Frontend usage (fetch-based SSE with POST body):
+        const res = await fetch('/api/chat/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages })
+        })
+        const reader = res.body.getReader()
+        // read tokens from the stream
     """
-    history = memory.get(body.session_id) if body.session_id else []
+    history = await memory.aget(body.session_id) if body.session_id else []
     all_messages = history + [m.model_dump() for m in body.messages]
 
     return StreamingResponse(
@@ -56,6 +58,6 @@ async def chat_stream(body: ChatRequest):
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",  # disable nginx buffering for SSE
+            "X-Accel-Buffering": "no",
         },
     )
