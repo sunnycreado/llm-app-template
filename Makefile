@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend test eval ingest smoke lint format
+.PHONY: dev backend frontend test eval ingest smoke lint format migrate migration
 
 # ── Dev ─────────────────────────────────────────────────────────────
 dev:
@@ -21,6 +21,13 @@ lint:
 format:
 	cd backend && black app/ && isort app/
 	cd frontend && npm run format
+
+# ── Database ────────────────────────────────────────────────────────
+migrate:
+	cd backend && alembic upgrade head
+
+migration:
+	cd backend && alembic revision --autogenerate -m "$(name)"
 
 # ── Data & Evals ────────────────────────────────────────────────────
 ingest:

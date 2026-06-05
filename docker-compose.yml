@@ -1,33 +1,16 @@
 version: "3.8"
 
-services:
-  app:
-    image: mcr.microsoft.com/devcontainers/python:3.11
-    volumes:
-      - ..:/workspace:cached
-    command: sleep infinity
-    environment:
-      - PYTHONPATH=/workspace/backend
-    depends_on:
-      - backend
-      - frontend
-      - postgres
-      - qdrant
-      - redis
+# Production compose — built images, no volume mounts, no hot reload
 
+services:
   backend:
     build:
-      context: ../backend
+      context: ./backend
       dockerfile: Dockerfile
-    volumes:
-      - ../backend:/app:cached
     ports:
       - "4000:4000"
     env_file:
-      - ../backend/.env
-    environment:
-      - PYTHONPATH=/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 4000 --reload
+      - ./backend/.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,15 +18,17 @@ services:
         condition: service_started
       redis:
         condition: service_started
+    restart: unless-stopped
 
   frontend:
-    image: node:20-alpine
-    working_dir: /app
-    volumes:
-      - ../frontend:/app:cached
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
-      - "5173:5173"
-    command: sh -c "npm install && npm run dev -- --host"
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
   postgres:
     image: postgres:16-alpine
@@ -60,6 +45,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -67,6 +53,7 @@ services:
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -74,6 +61,7 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    restart: unless-stopped
 
 volumes:
   postgres_data:

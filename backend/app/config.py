@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "documents"
 
+    # PostgreSQL
+    postgres_user: str = "appuser"
+    postgres_password: str = "apppassword"
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+    postgres_db: str = "appdb"
+
     # Memory
     redis_url: str = "redis://localhost:6379"
 
@@ -38,6 +45,13 @@ class Settings(BaseSettings):
     @property
     def nim_timeout(self) -> float:
         return self.nim_timeout_ms / 1000
+
+    @property
+    def database_url(self) -> str:
+        return (
+            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
 
 
 settings = Settings()
