@@ -1,6 +1,8 @@
 version: "3.8"
 
 services:
+  # VS Code connects into this container
+  # Backend and frontend run as processes inside here via `make dev`
   app:
     image: mcr.microsoft.com/devcontainers/python:3.11
     volumes:
@@ -9,26 +11,6 @@ services:
     environment:
       - PYTHONPATH=/workspace/backend
     depends_on:
-      - backend
-      - frontend
-      - postgres
-      - qdrant
-      - redis
-
-  backend:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
-    volumes:
-      - ../backend:/app:cached
-    ports:
-      - "4000:4000"
-    env_file:
-      - ../backend/.env
-    environment:
-      - PYTHONPATH=/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 4000 --reload
-    depends_on:
       postgres:
         condition: service_healthy
       qdrant:
@@ -36,27 +18,18 @@ services:
       redis:
         condition: service_started
 
-  frontend:
-    image: node:20-alpine
-    working_dir: /app
-    volumes:
-      - ../frontend:/app:cached
-    ports:
-      - "5173:5173"
-    command: sh -c "npm install && npm run dev -- --host"
-
   postgres:
     image: postgres:16-alpine
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-appuser}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apppassword}
-      POSTGRES_DB: ${POSTGRES_DB:-appdb}
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppassword
+      POSTGRES_DB: appdb
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appuser}"]
+      test: ["CMD-SHELL", "pg_isready -U appuser"]
       interval: 5s
       timeout: 5s
       retries: 5
