@@ -4,7 +4,7 @@ services:
   # VS Code connects into this container
   # Backend and frontend run as processes inside here via `make dev`
   app:
-    image: mcr.microsoft.com/devcontainers/python:3.11
+    image: python:3.11-slim
     volumes:
       - ..:/workspace:cached
     command: sleep infinity
