@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prompt Studio</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3250;
+    --text: #e8eaf6;
+    --muted: #7b82a8;
+    --accent: #6366f1;
+    --accent-soft: rgba(99,102,241,0.15);
+    --green: #10b981;
+    --green-soft: rgba(16,185,129,0.12);
+    --yellow: #f59e0b;
+    --yellow-soft: rgba(245,158,11,0.12);
+    --red: #ef4444;
+    --red-soft: rgba(239,68,68,0.12);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--bg);
+  }
+
+  body { min-height: 100vh; display: flex; flex-direction: column; }
+  button { cursor: pointer; border: none; font: inherit; }
+  input, textarea, select { font: inherit; }
+
+  /* ── Layout ── */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .header-sub { font-size: 12px; color: var(--muted); }
+  .dev-badge { padding: 3px 10px; border-radius: 999px; background: var(--yellow-soft); color: var(--yellow); font-size: 11px; font-weight: 600; }
+
+  .layout { display: flex; flex: 1; overflow: hidden; }
+
+  .sidebar {
+    width: 240px; flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .sidebar-section { padding: 16px; border-bottom: 1px solid var(--border); }
+  .sidebar-section label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px; }
+  .sidebar-input { width: 100%; padding: 7px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; }
+  .sidebar-input:focus { outline: none; border-color: var(--accent); }
+
+  .prompt-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .prompt-item {
+    padding: 10px 12px; border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-bottom: 2px;
+    transition: background 140ms;
+  }
+  .prompt-item:hover { background: var(--surface2); }
+  .prompt-item--active { background: var(--accent-soft); }
+  .prompt-item-name { font-size: 13px; font-weight: 500; }
+  .prompt-item-count { font-size: 11px; color: var(--muted); background: var(--surface2); padding: 2px 7px; border-radius: 999px; }
+
+  .main { flex: 1; overflow-y: auto; padding: 24px 28px; display: flex; flex-direction: column; gap: 24px; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .tab {
+    padding: 8px 16px; border-radius: 6px 6px 0 0;
+    font-size: 13px; font-weight: 500; color: var(--muted);
+    background: none; border: 1px solid transparent; border-bottom: none;
+    margin-bottom: -1px; cursor: pointer;
+    transition: color 140ms, background 140ms;
+  }
+  .tab:hover { color: var(--text); }
+  .tab--active { color: var(--text); background: var(--bg); border-color: var(--border); }
+
+  .tab-panel { display: none; }
+  .tab-panel--active { display: block; }
+
+  /* ── Cards ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .card-header h2 { font-size: 13px; font-weight: 600; }
+  .card-body { padding: 18px; }
+
+  /* ── Version list ── */
+  .version-table { width: 100%; border-collapse: collapse; }
+  .version-table th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .version-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  .version-table tr:last-child td { border-bottom: none; }
+  .version-table tr:hover td { background: var(--surface2); }
+
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .badge--active { background: var(--green-soft); color: var(--green); }
+  .badge--inactive { background: var(--surface2); color: var(--muted); }
+
+  /* ── Buttons ── */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 500; transition: opacity 140ms, transform 100ms; }
+  .btn:hover { opacity: 0.85; }
+  .btn:active { transform: scale(0.98); }
+  .btn--primary { background: var(--accent); color: #fff; }
+  .btn--ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn--success { background: var(--green-soft); color: var(--green); border: 1px solid rgba(16,185,129,0.2); }
+  .btn--danger { background: var(--red-soft); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+  .btn--sm { padding: 4px 10px; font-size: 12px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Forms ── */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .field input, .field textarea, .field select {
+    padding: 9px 12px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 7px; color: var(--text);
+  }
+  .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 120px; font-family: "SF Mono", "Fira Code", monospace; font-size: 13px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-full { grid-column: 1 / -1; }
+
+  /* ── Prompt viewer ── */
+  .prompt-viewer {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px;
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 13px; line-height: 1.7;
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 320px; overflow-y: auto;
+    color: var(--text);
+  }
+
+  /* ── Diff ── */
+  .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .diff-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px; }
+
+  /* ── Test panel ── */
+  .test-input { width: 100%; padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); resize: none; min-height: 80px; }
+  .test-input:focus { outline: none; border-color: var(--accent); }
+  .test-output { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: 13px; line-height: 1.7; min-height: 80px; white-space: pre-wrap; color: var(--text); }
+  .test-meta { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  /* ── Score ── */
+  .score-bar { display: flex; align-items: center; gap: 10px; }
+  .score-track { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 3px; background: var(--green); transition: width 400ms ease; }
+  .score-value { font-size: 13px; font-weight: 600; min-width: 36px; text-align: right; }
+
+  /* ── Empty / loading ── */
+  .empty { text-align: center; padding: 48px 24px; color: var(--muted); }
+  .empty-icon { font-size: 32px; margin-bottom: 12px; }
+  .loading { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    padding: 10px 18px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    font-size: 13px; font-weight: 500;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    transform: translateY(0); opacity: 1;
+    transition: opacity 300ms, transform 300ms;
+    z-index: 999;
+  }
+  .toast--hidden { opacity: 0; transform: translateY(8px); pointer-events: none; }
+  .toast--success { border-color: rgba(16,185,129,0.4); color: var(--green); }
+  .toast--error { border-color: rgba(239,68,68,0.4); color: var(--red); }
+
+  .few-shot-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+  .few-shot-role { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .few-shot-role--user { color: var(--accent); }
+  .few-shot-role--assistant { color: var(--green); }
+  .few-shot-content { font-size: 13px; white-space: pre-wrap; }
+
+  hr.divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">PS</div>
+    <div>
+      <h1>Prompt Studio</h1>
+      <div class="header-sub">Manage · Version · Test</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span class="dev-badge">DEV ONLY</span>
+    <span id="api-status" style="font-size:12px;color:var(--muted)">Connecting...</span>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <label>API URL</label>
+      <input class="sidebar-input" id="api-url" value="http://localhost:4000" placeholder="http://localhost:4000" />
+    </div>
+    <div class="sidebar-section">
+      <label>Prompt Name</label>
+      <input class="sidebar-input" id="prompt-name-input" value="base" placeholder="base" />
+      <button class="btn btn--primary" style="width:100%;margin-top:8px;justify-content:center;" onclick="loadVersions()">Load Versions</button>
+    </div>
+    <div class="prompt-list" id="version-sidebar"></div>
+  </div>
+
+  <!-- Main -->
+  <div class="main" id="main-content">
+    <div class="empty">
+      <div class="empty-icon">✦</div>
+      <div>Enter a prompt name and click <strong>Load Versions</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast toast--hidden" id="toast"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────
+let state = {
+  versions: [],
+  selectedVersion: null,
+  compareVersion: null,
+  activeTab: 'versions',
+};
+
+// ── API ──────────────────────────────────────────────────────────────
+function apiUrl() {
+  return document.getElementById('api-url').value.replace(/\/$/, '');
+}
+
+function promptName() {
+  return document.getElementById('prompt-name-input').value.trim();
+}
+
+async function api(method, path, body) {
+  const res = await fetch(`${apiUrl()}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+// ── Toast ────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast toast--${type}`;
+  setTimeout(() => el.className = 'toast toast--hidden', 3000);
+}
+
+// ── Health check ─────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    await api('GET', '/health');
+    document.getElementById('api-status').textContent = '● Connected';
+    document.getElementById('api-status').style.color = 'var(--green)';
+  } catch {
+    document.getElementById('api-status').textContent = '● Disconnected';
+    document.getElementById('api-status').style.color = 'var(--red)';
+  }
+}
+
+// ── Load versions ────────────────────────────────────────────────────
+async function loadVersions() {
+  const name = promptName();
+  if (!name) return;
+
+  try {
+    const data = await api('GET', `/api/prompts/${name}`);
+    state.versions = data.versions || [];
+    state.selectedVersion = state.versions[0] || null;
+    renderSidebar();
+    renderMain();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ── Promote ──────────────────────────────────────────────────────────
+async function promote(version) {
+  try {
+    await api('POST', `/api/prompts/${promptName()}/${version}/promote`);
+    toast(`Promoted to ${version}`);
+    await loadVersions();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ── Create version ───────────────────────────────────────────────────
+async function createVersion(e) {
+  e.preventDefault();
+  const form = e.target;
+  const body = {
+    version: form.version.value.trim(),
+    system: form.system.value.trim(),
+    few_shot: [],
+    model: form.model.value.trim() || null,
+    notes: form.notes.value.trim() || null,
+    activate: form.activate.checked,
+  };
+  try {
+    const fewShot = form.few_shot.value.trim();
+    if (fewShot) body.few_shot = JSON.parse(fewShot);
+  } catch {
+    toast('few_shot must be valid JSON array', 'error');
+    return;
+  }
+  try {
+    await api('POST', `/api/prompts/${promptName()}`, body);
+    toast(`Created version ${body.version}`);
+    form.reset();
+    await loadVersions();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ── Update eval score ────────────────────────────────────────────────
+async function saveEvalScore(version, score) {
+  try {
+    await api('PATCH', `/api/prompts/${promptName()}/${version}/eval-score`, { eval_score: parseFloat(score) });
+    toast('Eval score saved');
+    await loadVersions();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ── Test prompt ──────────────────────────────────────────────────────
+async function testPrompt() {
+  const input = document.getElementById('test-input').value.trim();
+  if (!input) return;
+  const output = document.getElementById('test-output');
+  const meta = document.getElementById('test-meta');
+  output.textContent = 'Thinking...';
+  meta.innerHTML = '';
+  const start = Date.now();
+  try {
+    const res = await api('POST', '/api/chat', {
+      messages: [{ role: 'user', content: input }],
+    });
+    output.textContent = res.message.content;
+    meta.innerHTML = `<span>Response time: ${Date.now() - start}ms</span>`;
+  } catch (err) {
+    output.textContent = `Error: ${err.message}`;
+  }
+}
+
+// ── Render sidebar ───────────────────────────────────────────────────
+function renderSidebar() {
+  const el = document.getElementById('version-sidebar');
+  if (!state.versions.length) {
+    el.innerHTML = '<div class="empty" style="padding:24px 12px;font-size:12px;">No versions found</div>';
+    return;
+  }
+  el.innerHTML = state.versions.map(v => `
+    <div class="prompt-item ${state.selectedVersion?.version === v.version ? 'prompt-item--active' : ''}"
+         onclick="selectVersion('${v.version}')">
+      <span class="prompt-item-name">${v.version}</span>
+      <span class="badge ${v.is_active ? 'badge--active' : 'badge--inactive'}">${v.is_active ? 'live' : 'draft'}</span>
+    </div>
+  `).join('');
+}
+
+function selectVersion(version) {
+  state.selectedVersion = state.versions.find(v => v.version === version);
+  renderSidebar();
+  renderMain();
+}
+
+// ── Render main ──────────────────────────────────────────────────────
+function renderMain() {
+  const el = document.getElementById('main-content');
+  el.innerHTML = `
+    <div class="tabs">
+      <button class="tab ${state.activeTab === 'versions' ? 'tab--active' : ''}" onclick="switchTab('versions')">Versions</button>
+      <button class="tab ${state.activeTab === 'create' ? 'tab--active' : ''}" onclick="switchTab('create')">+ New Version</button>
+      <button class="tab ${state.activeTab === 'compare' ? 'tab--active' : ''}" onclick="switchTab('compare')">Compare</button>
+      <button class="tab ${state.activeTab === 'test' ? 'tab--active' : ''}" onclick="switchTab('test')">Test</button>
+    </div>
+
+    <div class="tab-panel ${state.activeTab === 'versions' ? 'tab-panel--active' : ''}" id="tab-versions">
+      ${renderVersionsTab()}
+    </div>
+    <div class="tab-panel ${state.activeTab === 'create' ? 'tab-panel--active' : ''}" id="tab-create">
+      ${renderCreateTab()}
+    </div>
+    <div class="tab-panel ${state.activeTab === 'compare' ? 'tab-panel--active' : ''}" id="tab-compare">
+      ${renderCompareTab()}
+    </div>
+    <div class="tab-panel ${state.activeTab === 'test' ? 'tab-panel--active' : ''}" id="tab-test">
+      ${renderTestTab()}
+    </div>
+  `;
+
+  // Bind create form
+  document.getElementById('create-form')?.addEventListener('submit', createVersion);
+}
+
+function switchTab(tab) {
+  state.activeTab = tab;
+  renderMain();
+}
+
+// ── Versions tab ─────────────────────────────────────────────────────
+function renderVersionsTab() {
+  if (!state.versions.length) return '<div class="empty"><div class="empty-icon">📭</div><div>No versions yet</div></div>';
+
+  const v = state.selectedVersion;
+  if (!v) return '';
+
+  return `
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <h2>${promptName()} / ${v.version}</h2>
+          <span class="badge ${v.is_active ? 'badge--active' : 'badge--inactive'}">${v.is_active ? 'live' : 'draft'}</span>
+        </div>
+        <div style="display:flex;gap:8px;">
+          ${!v.is_active ? `<button class="btn btn--success btn--sm" onclick="promote('${v.version}')">⚡ Promote to live</button>` : '<span style="font-size:12px;color:var(--green);">● Currently live</span>'}
+        </div>
+      </div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:16px;">
+
+        <div style="display:flex;gap:24px;font-size:12px;color:var(--muted);">
+          <span>Model: <strong style="color:var(--text)">${v.model || '—'}</strong></span>
+          <span>Created: <strong style="color:var(--text)">${v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}</strong></span>
+          ${v.notes ? `<span>Notes: <strong style="color:var(--text)">${v.notes}</strong></span>` : ''}
+        </div>
+
+        <div>
+          <div class="diff-label">Eval Score</div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+            <div class="score-bar" style="flex:1;">
+              <div class="score-track">
+                <div class="score-fill" style="width:${v.eval_score ? v.eval_score * 100 : 0}%"></div>
+              </div>
+              <div class="score-value">${v.eval_score != null ? (v.eval_score * 100).toFixed(0) + '%' : '—'}</div>
+            </div>
+            <input type="number" id="score-input" min="0" max="1" step="0.01" placeholder="0.00–1.00"
+              value="${v.eval_score ?? ''}"
+              style="width:100px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);" />
+            <button class="btn btn--ghost btn--sm" onclick="saveEvalScore('${v.version}', document.getElementById('score-input').value)">Save</button>
+          </div>
+        </div>
+
+        <hr class="divider" />
+
+        <div>
+          <div class="diff-label" style="margin-bottom:8px;">System Prompt</div>
+          <div class="prompt-viewer" id="system-content">Loading...</div>
+        </div>
+
+        <div>
+          <div class="diff-label" style="margin-bottom:8px;">Few-shot Examples</div>
+          <div id="few-shot-content">Loading...</div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>All Versions</h2></div>
+      <div class="card-body" style="padding:0;">
+        <table class="version-table">
+          <thead><tr>
+            <th>Version</th><th>Status</th><th>Eval Score</th><th>Model</th><th>Created</th><th>Actions</th>
+          </tr></thead>
+          <tbody>
+            ${state.versions.map(ver => `
+              <tr style="cursor:pointer" onclick="selectVersion('${ver.version}')">
+                <td><strong>${ver.version}</strong></td>
+                <td><span class="badge ${ver.is_active ? 'badge--active' : 'badge--inactive'}">${ver.is_active ? 'live' : 'draft'}</span></td>
+                <td>${ver.eval_score != null ? (ver.eval_score * 100).toFixed(0) + '%' : '—'}</td>
+                <td style="color:var(--muted);font-size:12px;">${ver.model || '—'}</td>
+                <td style="color:var(--muted);font-size:12px;">${ver.created_at ? new Date(ver.created_at).toLocaleDateString() : '—'}</td>
+                <td>
+                  ${!ver.is_active ? `<button class="btn btn--success btn--sm" onclick="event.stopPropagation();promote('${ver.version}')">Promote</button>` : '<span style="font-size:11px;color:var(--green);">● Live</span>'}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ── Create tab ───────────────────────────────────────────────────────
+function renderCreateTab() {
+  const active = state.versions.find(v => v.is_active);
+  const prefillSystem = active?.system || '';
+  return `
+    <div class="card">
+      <div class="card-header"><h2>Create New Version</h2></div>
+      <div class="card-body">
+        <form id="create-form" style="display:flex;flex-direction:column;gap:14px;">
+          <div class="form-grid">
+            <div class="field">
+              <label>Version name *</label>
+              <input name="version" required placeholder="v2" />
+            </div>
+            <div class="field">
+              <label>Model</label>
+              <input name="model" placeholder="meta/llama-3.1-8b-instruct" />
+            </div>
+            <div class="field form-full">
+              <label>System Prompt *</label>
+              <textarea name="system" required rows="8" placeholder="You are a helpful assistant...">${prefillSystem}</textarea>
+            </div>
+            <div class="field form-full">
+              <label>Few-shot examples (JSON array)</label>
+              <textarea name="few_shot" rows="5" placeholder='[{"role":"user","content":"..."},{"role":"assistant","content":"..."}]'></textarea>
+            </div>
+            <div class="field form-full">
+              <label>Notes</label>
+              <input name="notes" placeholder="What changed and why" />
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" name="activate" /> Promote immediately after creating
+            </label>
+            <button type="submit" class="btn btn--primary">Create Version</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+// ── Compare tab ───────────────────────────────────────────────────────
+function renderCompareTab() {
+  if (state.versions.length < 2) {
+    return '<div class="empty"><div class="empty-icon">⚖️</div><div>Need at least 2 versions to compare</div></div>';
+  }
+  const opts = state.versions.map(v => `<option value="${v.version}">${v.version}${v.is_active ? ' (live)' : ''}</option>`).join('');
+  const a = state.versions[0];
+  const b = state.versions[1];
+  return `
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
+      <select class="sidebar-input" id="compare-a" onchange="updateCompare()" style="width:auto;">${opts}</select>
+      <span style="color:var(--muted);">vs</span>
+      <select class="sidebar-input" id="compare-b" onchange="updateCompare()" style="width:auto;">
+        ${state.versions.map((v,i) => `<option value="${v.version}" ${i===1?'selected':''}>${v.version}${v.is_active?' (live)':''}</option>`).join('')}
+      </select>
+    </div>
+    <div class="diff-grid" id="compare-grid">
+      ${renderDiffSide(a, 'A')}
+      ${renderDiffSide(b, 'B')}
+    </div>
+  `;
+}
+
+function renderDiffSide(v, label) {
+  if (!v) return '';
+  return `
+    <div>
+      <div class="diff-label">${label}: ${v.version} ${v.is_active ? '<span class="badge badge--active">live</span>' : ''}</div>
+      <div class="card" style="margin-top:8px;">
+        <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <div class="diff-label" style="margin-bottom:6px;">System</div>
+            <div class="prompt-viewer" style="max-height:220px;" id="diff-system-${v.version}">Loading...</div>
+          </div>
+          <div style="font-size:12px;color:var(--muted);">
+            Eval: <strong style="color:var(--text)">${v.eval_score != null ? (v.eval_score*100).toFixed(0)+'%' : '—'}</strong>
+            &nbsp;·&nbsp; Model: <strong style="color:var(--text)">${v.model || '—'}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function updateCompare() {
+  const aVer = document.getElementById('compare-a')?.value;
+  const bVer = document.getElementById('compare-b')?.value;
+  if (!aVer || !bVer) return;
+  const a = state.versions.find(v => v.version === aVer);
+  const b = state.versions.find(v => v.version === bVer);
+  document.getElementById('compare-grid').innerHTML = renderDiffSide(a, 'A') + renderDiffSide(b, 'B');
+  await loadSystemForDiff(a);
+  await loadSystemForDiff(b);
+}
+
+async function loadSystemForDiff(v) {
+  if (!v) return;
+  const el = document.getElementById(`diff-system-${v.version}`);
+  if (!el) return;
+  try {
+    const data = await api('GET', `/api/prompts/${promptName()}/${v.version}`);
+    el.textContent = data.system || '(empty)';
+  } catch { el.textContent = 'Failed to load'; }
+}
+
+// ── Test tab ─────────────────────────────────────────────────────────
+function renderTestTab() {
+  const active = state.versions.find(v => v.is_active);
+  return `
+    <div class="card">
+      <div class="card-header">
+        <h2>Live Test</h2>
+        <span style="font-size:12px;color:var(--muted);">Using active version: <strong style="color:var(--text)">${active?.version || '—'}</strong></span>
+      </div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+        <div class="field">
+          <label>Your message</label>
+          <textarea id="test-input" class="test-input" placeholder="Type a message to test the active prompt..."></textarea>
+        </div>
+        <div>
+          <button class="btn btn--primary" onclick="testPrompt()">▶ Send</button>
+        </div>
+        <div>
+          <div class="diff-label" style="margin-bottom:8px;">Response</div>
+          <div class="test-output" id="test-output">Response will appear here...</div>
+          <div class="test-meta" id="test-meta"></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Load system prompt content ────────────────────────────────────────
+async function loadVersionContent() {
+  const v = state.selectedVersion;
+  if (!v || state.activeTab !== 'versions') return;
+  try {
+    const data = await api('GET', `/api/prompts/${promptName()}/${v.version}`);
+    const sysEl = document.getElementById('system-content');
+    const fsEl = document.getElementById('few-shot-content');
+    if (sysEl) sysEl.textContent = data.system || '(empty)';
+    if (fsEl) {
+      const shots = data.few_shot || [];
+      if (!shots.length) {
+        fsEl.innerHTML = '<div style="color:var(--muted);font-size:13px;">No few-shot examples</div>';
+      } else {
+        fsEl.innerHTML = shots.map(s => `
+          <div class="few-shot-item">
+            <div class="few-shot-role few-shot-role--${s.role}">${s.role}</div>
+            <div class="few-shot-content">${s.content}</div>
+          </div>
+        `).join('');
+      }
+    }
+  } catch (err) {
+    const sysEl = document.getElementById('system-content');
+    if (sysEl) sysEl.textContent = `Failed to load: ${err.message}`;
+  }
+}
+
+// ── Observer to load content after render ────────────────────────────
+const observer = new MutationObserver(() => {
+  if (document.getElementById('system-content')) {
+    loadVersionContent();
+    // Load compare diffs if visible
+    state.versions.slice(0, 2).forEach(v => {
+      if (document.getElementById(`diff-system-${v.version}`)) loadSystemForDiff(v);
+    });
+  }
+});
+observer.observe(document.getElementById('main-content'), { childList: true, subtree: true });
+
+// ── API URL persistence ───────────────────────────────────────────────
+document.getElementById('api-url').value = localStorage.getItem('ps-api-url') || 'http://localhost:4000';
+document.getElementById('api-url').addEventListener('change', e => {
+  localStorage.setItem('ps-api-url', e.target.value);
+  checkHealth();
+});
+
+// ── Init ─────────────────────────────────────────────────────────────
+checkHealth();
+setInterval(checkHealth, 10000);
+</script>
+</body>
+</html>

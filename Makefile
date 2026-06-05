@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend test eval ingest smoke lint format migrate migration
+.PHONY: dev backend frontend test eval ingest smoke lint format migrate migration seed-prompts
 
 # ── Dev ─────────────────────────────────────────────────────────────
 dev:
@@ -28,6 +28,9 @@ migrate:
 
 migration:
 	cd backend && alembic revision --autogenerate -m "$(name)"
+
+seed-prompts:
+	python backend/scripts/seed_prompts.py --activate
 
 # ── Data & Evals ────────────────────────────────────────────────────
 ingest:

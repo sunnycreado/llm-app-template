@@ -1,83 +1,94 @@
 # Prompt Versioning
 
-Prompts are plain text files — never Python strings. This makes them:
-- Readable by non-engineers (PMs, domain experts)
-- Diffable in git like any other file
-- Versioned independently from code
+DB-backed — versions live in PostgreSQL. Promote without redeploying.
+File system is used as fallback if the DB is unavailable.
 
 ---
 
-## Structure
+## How it works
 
 ```
-backend/app/prompts/
-├── CHANGELOG.md          ← log every version change + eval score
-└── base/                 ← default prompt version
-    ├── system.txt        ← the system prompt
-    ├── few_shot.json     ← few-shot examples (can be empty array)
-    └── meta.json         ← version metadata
+prompt_versions table
+┌────┬────────┬─────────┬───────────────┬───────────┬───────────┐
+│ id │  name  │ version │    system     │ is_active │ eval_score│
+├────┼────────┼─────────┼───────────────┼───────────┼───────────┤
+│  1 │  base  │  base   │ You are a ... │   false   │   null    │
+│  2 │  base  │   v2    │ You are a ... │   true    │   0.91    │
+│  3 │  base  │   v3    │ You are a ... │   false   │   null    │
+└────┴────────┴─────────┴───────────────┴───────────┴───────────┘
 ```
+
+`is_active=true` marks the live version. Only one row per name can be active.
+
+---
+
+## First-time setup
+
+After running migrations, seed existing file-based prompts into the DB:
+
+```bash
+make migrate
+make seed-prompts
+```
+
+This reads every folder under `backend/app/prompts/` and inserts each one as a DB row, marking it active.
 
 ---
 
 ## Creating a new version
 
-**Never edit an existing version. Always create a new folder.**
+**Via API:**
+```bash
+curl -X POST http://localhost:4000/api/prompts/base \
+  -H "Content-Type: application/json" \
+  -d '{
+    "version": "v2",
+    "system": "You are a helpful assistant...",
+    "few_shot": [],
+    "model": "meta/llama-3.1-8b-instruct",
+    "notes": "Tightened null discipline rule.",
+    "activate": false
+  }'
+```
+
+**Via Swagger:** `http://localhost:4000/docs` → `POST /api/prompts/{name}`
+
+---
+
+## Promoting a version
+
+No redeploy needed — the app picks it up on the next request.
 
 ```bash
-cp -r backend/app/prompts/base backend/app/prompts/v2
+curl -X POST http://localhost:4000/api/prompts/base/v2/promote
 ```
 
-Edit `v2/system.txt` and `v2/few_shot.json`.
+Or via Swagger: `POST /api/prompts/{name}/{version}/promote`
 
-Update `v2/meta.json`:
-```json
-{
-  "version": "v2",
-  "model": "meta/llama-3.1-8b-instruct",
-  "eval_score": null,
-  "notes": "Added stricter null discipline rule.",
-  "created": "2026-06-05"
-}
-```
+---
 
-Switch to the new version in `.env`:
-```env
-PROMPT_VERSION=v2
-```
+## Recording an eval score
 
-Run evals and record the score:
+After running `make eval`:
+
 ```bash
-make eval
-```
-
-Add an entry to `CHANGELOG.md`:
-```md
-## v2 — 2026-06-05
-- Added stricter null discipline rule
-- eval_score: 0.91
-- model: meta/llama-3.1-8b-instruct
+curl -X PATCH http://localhost:4000/api/prompts/base/v2/eval-score \
+  -H "Content-Type: application/json" \
+  -d '{"eval_score": 0.91}'
 ```
 
 ---
 
-## few_shot.json format
+## API reference
 
-```json
-[
-  {
-    "role": "user",
-    "content": "Example user message"
-  },
-  {
-    "role": "assistant",
-    "content": "Example ideal response"
-  }
-]
-```
-
-Each user/assistant pair is one example. Add as many as needed.
-The LLM sees these before the real conversation starts.
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/api/prompts/{name}` | List all versions |
+| `GET` | `/api/prompts/{name}/active` | Get the active version |
+| `GET` | `/api/prompts/{name}/{version}` | Get a specific version |
+| `POST` | `/api/prompts/{name}` | Create a new version |
+| `POST` | `/api/prompts/{name}/{version}/promote` | Promote to active |
+| `PATCH` | `/api/prompts/{name}/{version}/eval-score` | Record eval score |
 
 ---
 
@@ -86,22 +97,37 @@ The LLM sees these before the real conversation starts.
 ```python
 from app.prompts.registry import load, build_messages
 
-# Load prompt data
-prompt = load(name="base", version="latest")
-print(prompt["system"])     # system prompt string
-print(prompt["few_shot"])   # list of message dicts
-print(prompt["meta"])       # metadata dict
+# Load active version (default)
+prompt = await load(name="base")
+
+# Load specific version
+prompt = await load(name="base", version="v2")
 
 # Build full messages array for NIM
-messages = build_messages(name="base", version="v2", user_text="Hello")
+messages = await build_messages(name="base", user_text="Hello")
 ```
 
 ---
 
-## Rules
+## File fallback
 
-1. Never edit an existing version folder
-2. Always create a new version
-3. Always run `make eval` before promoting to production
-4. Record eval score in `meta.json` and `CHANGELOG.md`
-5. `PROMPT_VERSION=latest` always resolves to the `base/` folder
+If the DB is unreachable, `registry.py` falls back to reading from:
+
+```
+backend/app/prompts/<name>/system.txt
+backend/app/prompts/<name>/few_shot.json
+```
+
+This means the app never crashes due to a DB issue — it just uses the file version.
+
+---
+
+## Workflow
+
+```
+1. Create new version via API (activate=false)
+2. Run make eval against the new version
+3. If score is good → promote via API
+4. Record eval score via PATCH /eval-score
+5. Update CHANGELOG.md with notes
+```
