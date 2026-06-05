@@ -38,6 +38,7 @@ class Settings(BaseSettings):
 
     # Memory
     redis_url: str = "redis://localhost:6379"
+    use_redis: bool = False
 
     # LangGraph
     langgraph_recursion_limit: int = 25

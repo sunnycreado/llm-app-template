@@ -12,6 +12,11 @@ memory = ConversationMemory()
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest):
+    """
+    Standard chat endpoint.
+    Runs the full LangGraph pipeline and returns a single response.
+    Persists history if session_id is provided.
+    """
     history = memory.get(body.session_id) if body.session_id else []
     all_messages = history + [m.model_dump() for m in body.messages]
 
@@ -31,10 +36,26 @@ async def chat(body: ChatRequest):
 
 @router.post("/chat/stream")
 async def chat_stream(body: ChatRequest):
+    """
+    Streaming chat endpoint — returns tokens via Server-Sent Events.
+    Does NOT run the full agent graph — streams directly from NIM.
+    Use /chat for full agentic behaviour, /chat/stream for fast UX.
+
+    Frontend usage:
+        const es = new EventSource('/api/chat/stream')
+        es.onmessage = (e) => {
+            const { token } = JSON.parse(e.data)
+            // append token to UI
+        }
+    """
     history = memory.get(body.session_id) if body.session_id else []
     all_messages = history + [m.model_dump() for m in body.messages]
 
     return StreamingResponse(
         stream_response(all_messages),
         media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # disable nginx buffering for SSE
+        },
     )
