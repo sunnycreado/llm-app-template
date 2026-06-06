@@ -273,7 +273,7 @@ function toast(msg, type = 'success') {
 // ── Health check ─────────────────────────────────────────────────────
 async function checkHealth() {
   try {
-    await api('GET', '/health');
+    await api('GET', '/api/health');
     document.getElementById('api-status').textContent = '● Connected';
     document.getElementById('api-status').style.color = 'var(--green)';
   } catch {
@@ -913,7 +913,7 @@ document.getElementById('api-url').addEventListener('change', e => {
 
 // ── Init ─────────────────────────────────────────────────────────────
 checkHealth();
-setInterval(checkHealth, 10000);
+setInterval(checkHealth, 30000);
 </script>
 </body>
 </html>
