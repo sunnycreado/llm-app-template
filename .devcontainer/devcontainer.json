@@ -9,11 +9,12 @@
 
   "forwardPorts": [4000, 5173, 6333, 6379],
   "portsAttributes": {
-    "4000": { "label": "FastAPI backend" },
-    "5173": { "label": "Vite frontend" },
-    "6333": { "label": "Qdrant" },
-    "6379": { "label": "Redis" }
+    "4000": { "label": "FastAPI backend", "onAutoForward": "silent" },
+    "5173": { "label": "Vite frontend", "onAutoForward": "openBrowser" },
+    "6333": { "label": "Qdrant", "onAutoForward": "silent" },
+    "6379": { "label": "Redis", "onAutoForward": "silent" }
   },
+  "otherPortsAttributes": { "onAutoForward": "ignore" },
 
   "customizations": {
     "vscode": {
