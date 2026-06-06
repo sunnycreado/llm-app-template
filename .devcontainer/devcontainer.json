@@ -6,6 +6,7 @@
 
   "onCreateCommand": "apt-get update && apt-get install -y curl make && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs",
   "postCreateCommand": "pip install -r backend/requirements.txt && npm install --prefix frontend && [ ! -f backend/.env ] && cp backend/.env.example backend/.env || true",
+  "postStartCommand": "make dev",
 
   "forwardPorts": [4000, 5173, 6333, 6379],
   "portsAttributes": {
